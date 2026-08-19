@@ -30,17 +30,18 @@
   }
 
   /* ===== بطاقة reCAPTCHA ===== */
-  .captcha-box{
-    width:302px;
-    border:1px solid var(--border);
-    border-radius:3px;
-    background:#fff;
-    box-shadow:0 0 4px rgba(0,0,0,.15);
-    padding:14px 16px;
-    display:flex;
-    align-items:center;
-    gap:14px;
-  }
+.captcha-box{
+  width: 100%;          /* بدلاً من 302px ليتكيف مع أبعاد الحاوية */
+  max-width: 350px;     /* تحديد أقصى عرض مسموح به */
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(0,0,0,.15);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
   .checkbox-wrap{
     width:28px;
     height:28px;
