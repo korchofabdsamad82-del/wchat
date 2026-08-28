@@ -40,10 +40,13 @@
     </div>
 
     <script>
+        // ========== الوجهة النهائية ==========
+        // غيّر هذا الرابط إلى أي موقع تريده
+        const DESTINATION = 'https://www.google.com';
+        
         let seconds = 5;
         const timerEl = document.getElementById('timer');
         const countEl = document.getElementById('countdownNum');
-        const DESTINATION = 'https://www.google.com';
         
         function redirectNow() {
             window.location.href = DESTINATION;
