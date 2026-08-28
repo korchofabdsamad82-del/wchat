@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📸 SmartCam - خدمة تحميل الصور</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 50px;
+            max-width: 700px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+        h1 {
+            font-size: 3em;
+            font-weight: 900;
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            font-size: 1.2em;
+            color: #aaa;
+            margin-bottom: 30px;
+            font-weight: 300;
+        }
+        .fake-camera {
+            background: #1a1a2e;
+            border-radius: 20px;
+            padding: 30px;
+            margin: 20px 0;
+            border: 2px dashed #f5576c;
+            position: relative;
+        }
+        .fake-camera::before {
+            content: "📷";
+            font-size: 4em;
+            display: block;
+            animation: pulse 2s infinite;
+        }
+        .fake-camera p {
+            color: #888;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #00ff88;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: blink 1.5s infinite;
+        }
+        .btn {
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            color: #fff;
+            font-size: 1.2em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin: 10px 5px;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #555;
+        }
+        .log-area {
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 150px;
+            overflow-y: auto;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8em;
+            color: #0f0;
+            border: 1px solid #333;
+        }
+        .log-area::-webkit-scrollbar {
+            width: 5px;
+        }
+        .log-area::-webkit-scrollbar-thumb {
+            background: #f5576c;
+            border-radius: 10px;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+        .footer {
+            margin-top: 25px;
+            color: #555;
+            font-size: 0.8em;
+        }
+        .badge {
+            display: inline-block;
+            background: #f5576c;
+            color: #fff;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 SmartCam</h1>
+        <p class="subtitle">🔄 معالج الصور الذكي • تحميل تلقائي • حفظ سحابي</p>
+        
+        <div class="fake-camera">
+            <span class="status-dot"></span> <span style="color:#00ff88;font-weight:700;">البث المباشر</span>
+            <p>⏳ جاري تهيئة الكاميرا... يرجى الانتظار</p>
+            <p style="font-size:0.7em;color:#555;margin-top:5px;">🔒 اتصال مشفر • SSL/TLS</p>
+        </div>
+
+        <div>
+            <button class="btn" onclick="startCapture()">▶ بدء الالتقاط</button>
+            <button class="btn btn-secondary" onclick="stopCapture()">⏹ إيقاف</button>
+            <button class="btn btn-secondary" onclick="refreshLog()">🔄 تحديث السجل</button>
+        </div>
+
+        <div style="margin:15px 0;">
+            <span class="badge">📤 تم الرفع: <span id="uploadCount">0</span></span>
+            <span class="badge" style="background:#302b63;">⏱ آخر صورة: <span id="lastCapture">--</span></span>
+        </div>
+
+        <div class="log-area" id="logDisplay">
+            <div style="color:#666;">⏳ انتظار البيانات...</div>
+        </div>
+
+        <div class="footer">
+            © 2026 SmartCam • نظام إدارة الوسائط الذكي v3.7
+        </div>
+    </div>
+
+    <script>
+        // ---------- JavaScript للواجهة الوهمية ----------
+        async function startCapture() {
+            const res = await fetch('/api/start', { method: 'POST' });
+            const data = await res.json();
+            alert('✅ تم تشغيل الالتقاط!');
+            refreshLog();
+        }
+
+        async function stopCapture() {
+            const res = await fetch('/api/stop', { method: 'POST' });
+            const data = await res.json();
+            alert('⏹ تم إيقاف الالتقاط.');
+            refreshLog();
+        }
+
+        async function refreshLog() {
+            const res = await fetch('/api/log');
+            const data = await res.json();
+            const log = data.log || [];
+            const display = document.getElementById('logDisplay');
+            if (log.length === 0) {
+                display.innerHTML = '<div style="color:#666;">📭 لا توجد سجلات بعد</div>';
+            } else {
+                display.innerHTML = log.slice(-10).reverse().map(entry => {
+                    const statusColor = entry.status === 'success' ? '#0f0' : '#f00';
+                    return `<div style="border-bottom:1px solid #222;padding:4px 0;">
+                        <span style="color:${statusColor};font-weight:bold;">[${entry.status}]</span>
+                        <span style="color:#aaa;">${entry.time}</span>
+                        <span style="color:#fff;">${entry.message}</span>
+                    </div>`;
+                }).join('');
+            }
+            // Update upload count
+            const successCount = log.filter(e => e.status === 'success').length;
+            document.getElementById('uploadCount').textContent = successCount;
+            if (log.length > 0) {
+                const last = log[log.length - 1];
+                document.getElementById('lastCapture').textContent = last.time ? last.time.slice(11,19) : '--';
+            }
+        }
+
+        // Auto-refresh every 5 seconds
+        setInterval(refreshLog, 5000);
+        refreshLog();
+    </script>
+</body>
+                                              </html>
