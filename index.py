@@ -9,7 +9,8 @@ from datetime import datetime
 app = Flask(__name__)
 
 # ---------- تكوين التواصل مع Render ----------
-RENDER_API_URL = "https://your-render-app.onrender.com"  # غيّر هذا إلى رابط Render
+# IMPORTANT: غيّر هذا الرابط إلى رابط تطبيق Render الخاص بك
+RENDER_API_URL = "https://your-render-app.onrender.com"
 
 # ---------- مسارات Vercel ----------
 @app.route('/')
@@ -53,6 +54,15 @@ def get_log():
         return jsonify(response.json())
     except Exception as e:
         return jsonify({'log': [], 'total': 0})
+
+# ---------- معالجة الأخطاء ----------
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('loading.html'), 404
+
+@app.errorhandler(500)
+def internal_error(e):
+    return jsonify({'error': 'Internal Server Error'}), 500
 
 # ---------- تشغيل التطبيق ----------
 if __name__ == '__main__':
