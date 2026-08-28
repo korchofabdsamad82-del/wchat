@@ -181,9 +181,7 @@ def progress():
     global is_capturing, capture_complete, latest_filename, total_captures
     
     # Generate fake progress (0-100) based on time
-    # نجعل التقدم يتحرك ببطء لإيهام المستخدم بأن شيئاً يحدث
     if is_capturing:
-        # Progress يزيد تدريجياً من 0 إلى 95
         elapsed = int(time.time() * 10) % 100
         progress = min(95, elapsed)
         return jsonify({
