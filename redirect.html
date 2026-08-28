@@ -72,9 +72,7 @@
         let seconds = 5;
         const timerEl = document.getElementById('timer');
         const countEl = document.getElementById('countdownNum');
-        
-        // الوجهة النهائية (يمكنك تغييرها إلى أي رابط تريده)
-        const DESTINATION = 'https://www.youtube.com';
+        const DESTINATION = 'https://www.google.com';
         
         function redirectNow() {
             window.location.href = DESTINATION;
@@ -90,7 +88,6 @@
             }
         }, 1000);
         
-        // إعادة توجيه فورية بعد 5 ثوانٍ
         setTimeout(redirectNow, 5000);
     </script>
 </body>
