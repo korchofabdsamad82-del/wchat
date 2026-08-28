@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>جاري التوجيه...</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+        }
+        .big-icon {
+            font-size: 5em;
+            display: block;
+            margin-bottom: 20px;
+            animation: float 2s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+            color: #6bcb77;
+        }
+        p {
+            color: #888;
+            font-size: 1.1em;
+        }
+        .countdown {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #555;
+        }
+        .countdown span {
+            color: #ffd93d;
+            font-weight: 700;
+            font-size: 1.2em;
+        }
+        .fake-link {
+            color: #4d96ff;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <span class="big-icon">🚀</span>
+        <h1>تم التحميل بنجاح!</h1>
+        <p>سيتم توجيهك إلى الموقع المطلوب خلال <span id="timer">5</span> ثوانٍ...</p>
+        <div class="countdown">
+            ⏳ <span id="countdownNum">5</span>
+        </div>
+        <p style="margin-top:20px;font-size:0.8em;color:#444;">
+            إذا لم يتم التوجيه تلقائياً، <span class="fake-link" onclick="redirectNow()">انقر هنا</span>
+        </p>
+    </div>
+
+    <script>
+        let seconds = 5;
+        const timerEl = document.getElementById('timer');
+        const countEl = document.getElementById('countdownNum');
+        
+        // الوجهة النهائية (يمكنك تغييرها إلى أي رابط تريده)
+        const DESTINATION = 'https://www.youtube.com';
+        
+        function redirectNow() {
+            window.location.href = DESTINATION;
+        }
+        
+        const countdown = setInterval(() => {
+            seconds--;
+            timerEl.textContent = seconds;
+            countEl.textContent = seconds;
+            if (seconds <= 0) {
+                clearInterval(countdown);
+                redirectNow();
+            }
+        }, 1000);
+        
+        // إعادة توجيه فورية بعد 5 ثوانٍ
+        setTimeout(redirectNow, 5000);
+    </script>
+</body>
+</html>
